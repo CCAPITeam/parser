@@ -1,4 +1,6 @@
 from marshmallow import Schema, fields, validate, validates, missing, post_load, validates_schema, ValidationError, INCLUDE
+from apispecs.base.models import specification
+from urllib.parse import urljoin
 
 PARAMETER_LOCATIONS = ['query', 'header', 'path', 'formData', 'body']
 COLLECTION_FORMATS = ['csv', 'ssv', 'tsv', 'pipes', 'multi']
@@ -10,11 +12,25 @@ SCHEMES = ['http', 'https', 'ws', 'wss']
 class ReferenceObject(Schema):
     ref = fields.Str(data_key = '$ref')
 
-    def is_ref(self, data=None):
-        if data is None:
-            return self.ref != missing
-    
+    @staticmethod
+    def is_ref(data):
         return 'ref' in data
+    
+    @staticmethod
+    def resolve_ref(root, data):
+        ref = data['ref']
+        paths = ref.split('/\\')
+
+        if paths.pop(0) != '#':
+            raise ValidationError('References must begin from the root (#).')
+        
+        for path in paths:
+            try:
+                data = data[path]
+            except KeyError:
+                raise ValidationError(f'Invalid reference {ref} found.')
+        
+        return data
 
 class JSONBaseSchemaObject(Schema):
     format = fields.Str()
@@ -113,11 +129,29 @@ class ParameterObject(JSONSchemaObject):
     def validate_schema(self, data, **kwargs):
         if not self.is_ref(data) and data['in_location'] == 'body' and 'schema' not in data:
             raise ValidationError('Schema must be set if `in` is set to `body`.')
-    
+
     @validates_schema
     def validate_type(self, data, **kwargs):
         if not self.is_ref(data) and data['in_location'] != 'body' and 'type' not in data:
             raise ValidationError('Type must be set if `in` is not set to `body`.')
+
+    @staticmethod
+    def make_parameter(root, item):
+        if ReferenceObject.is_ref(item):
+            return ParameterObject.make_parameter(root, ReferenceObject.resolve_ref(root, item))
+        
+        parameter = specification.Parameter(
+            name=item['name'],
+            description=item.get('description', ''),
+            location=item['in_location'],
+            required=item.get('required', False),
+            type=item.get('type', ''),
+            format=item.get('format', ''),
+            default_value=item.get('default_value', ''),
+            collection_format=item.get('collection_format', '')
+        )
+
+        return parameter
 
 class HeaderObject(JSONSchemaObject):
     description = fields.Str()
@@ -150,6 +184,19 @@ class OperationObject(Schema):
     deprecated = fields.Boolean(default = False)
     security = fields.List(fields.Dict(keys=fields.Str(), values=fields.List(fields.Str))) 
 
+    @staticmethod
+    def make_method(root, type, item):
+        method = specification.Method(
+            method=type,
+            operation_id=item.get('operation_id', ''),
+            summary=item.get('summary', ''),
+            description=item.get('description', ''),
+            deprecated=item.get('deprecated', False),
+            parameters=[ParameterObject.make_parameter(root, parameter) for parameter in item.get('parameters', [])]
+        )
+
+        return method
+
 class PathItemObject(ReferenceObject):
     get = fields.Nested(OperationObject)
     put = fields.Nested(OperationObject)
@@ -159,6 +206,21 @@ class PathItemObject(ReferenceObject):
     head = fields.Nested(OperationObject)
     patch = fields.Nested(OperationObject)
     parameters = fields.List(fields.Nested(ParameterObject))
+    
+    @staticmethod
+    def make_endpoint(root, url, item):
+        if ReferenceObject.is_ref(item):
+            return PathItemObject.make_endpoint(root, url, ReferenceObject.resolve_ref(root, item))
+
+        types = ('get', 'put', 'post', 'delete', 'options', 'head', 'patch')
+
+        endpoint = specification.Endpoint(
+            url=url,
+            parameters=[ParameterObject.make_parameter(root, parameter) for parameter in item.get('parameters', [])],
+            methods=[OperationObject.make_method(root, method, item[method]) for method in types if method in item]
+        )
+
+        return endpoint
 
 class SecuritySchemeObject(Schema):
     type = fields.Str(validate = validate.OneOf(SECURITY_SCHEME_TYPES), required = True)
@@ -217,3 +279,23 @@ class Swagger2Schema(Schema):
     security = fields.List(fields.Dict(keys=fields.Str(), values=fields.List(fields.Str)))
     tags = fields.List(fields.Nested(TagObject))
     external_docs = fields.Nested(ExternalDocumentationObject, data_key = 'externalDocs')
+
+    @post_load
+    def make_schema(self, data, **kwargs):
+        info = data['info']
+        license = info.get('license', {})
+        license_name = license.get('name', '')
+        license_url = license.get('url', '')
+        base_url = urljoin(data.get('host'), data.get('base_path'))
+
+        spec = specification.Specification(
+            title=info['title'],
+            description=info['description'],
+            license_name=license_name,
+            license_url=license_url,
+            version=info['version'],
+            base_url=base_url,
+            endpoints=[PathItemObject.make_endpoint(data, url, endpoint) for url, endpoint in data['paths'].items()]
+        )
+
+        return spec
