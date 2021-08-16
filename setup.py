@@ -1,4 +1,4 @@
-from setuptools import setup
+from setuptools import setup, find_packages
 
 setup(
     name='apispecs',
@@ -8,7 +8,7 @@ setup(
     author='Derzsi Daniel',
     author_email='daniel.derzsi@cognitivecreators.com',
     license='MIT',
-    packages=['apispecs'],
+    packages=find_packages(),
     install_requires=['PyYAML', 'marshmallow'],
     zip_safe=False
 )
