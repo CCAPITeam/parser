@@ -1,4 +1,4 @@
-from apispecs.base.utils import format_list
+from apispecs.base.utils import format_list, format_dict
 
 """
 Denotes a single specification.
@@ -19,7 +19,7 @@ class Specification(object):
         return (
             f'Specification(title={self.title}, description={self.description}, license_name={self.license_name}, '
             f'license_url={self.license_url}, version={self.version}, base_url={self.base_url}, '
-            f'endpoints={format_list(self.endpoints)}'
+            f'endpoints={format_list(self.endpoints)})'
         )
 
 class Endpoint(object):
@@ -36,19 +36,61 @@ class Endpoint(object):
 
 class Method(object):
 
-    def __init__(self, method, operation_id, summary, description, deprecated, parameters):
+    def __init__(self, method, operation_id, summary, description, deprecated, parameters, responses):
         self.method = method
         self.operation_id = operation_id
         self.summary = summary
         self.description = description
         self.deprecated = deprecated
         self.parameters = parameters
+        self.responses = responses
 
     def __str__(self):
         return (
             f'{self.method.upper()}(operation_id={self.operation_id}, summary={self.summary}, '
             f'description={self.description}, deprecated={self.deprecated}, '
-            f'parameters={format_list(self.parameters)}'
+            f'parameters={format_list(self.parameters)}, responses={format_dict(self.responses)})'
+        )
+
+class Header(object):
+
+    def __init__(self, name, description, type, format, default_value, collection_format):        
+        self.name = name
+        self.description = description
+        self.type = type
+        self.format = format
+        self.default_value = default_value
+        self.collection_format = collection_format
+    
+    def __str__(self):
+        return (
+            f'Header(name={self.name}, description={self.description}, type={self.type}, format={self.format}, '
+            f'default_value={self.default_value}, collection_format={self.collection_format})'
+        )
+
+class Example(object):
+
+    def __init__(self, mime_type, key, value):
+        self.mime_type = mime_type
+        self.key = key
+        self.value = value
+    
+    def __str__(self):
+        return f'Example(mime_type={self.mime_type}, key={self.key}, value={self.value})'
+
+class Response(object):
+
+    def __init__(self, name, description, schema, headers, examples):
+        self.name = name
+        self.description = description
+        self.schema = schema
+        self.headers = headers
+        self.examples = examples
+
+    def __str__(self):
+        return (
+            f'Response(name={self.name}, description={self.description}, schema={self.schema}, '
+            f'headers={format_list(self.headers)}, examples={format_list(self.examples)})'
         )
 
 class Parameter(object):
@@ -67,5 +109,5 @@ class Parameter(object):
         return (
             f'Parameter(name={self.name}, description={self.description}, location={self.location}, '
             f'required={self.required}, type={self.type}, format={self.format}, '
-            f'default_value={self.default_value}, collection_format={self.collection_format}'
+            f'default_value={self.default_value}, collection_format={self.collection_format})'
         )
