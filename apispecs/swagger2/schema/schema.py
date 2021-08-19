@@ -19,18 +19,20 @@ class ReferenceObject(Schema):
     @staticmethod
     def resolve_ref(root, data):
         ref = data['ref']
-        paths = ref.split('/\\')
+        paths = ref.split('/')
 
         if paths.pop(0) != '#':
             raise ValidationError('References must begin from the root (#).')
         
+        current = root
+
         for path in paths:
             try:
-                data = data[path]
+                current = current[path]
             except KeyError:
                 raise ValidationError(f'Invalid reference {ref} found.')
-        
-        return data
+
+        return current, path
 
 class JSONBaseSchemaObject(Schema):
     format = fields.Str()
@@ -138,7 +140,8 @@ class ParameterObject(JSONSchemaObject):
     @staticmethod
     def make_parameter(root, item):
         if ReferenceObject.is_ref(item):
-            return ParameterObject.make_parameter(root, ReferenceObject.resolve_ref(root, item))
+            ref, name = ReferenceObject.resolve_ref(root, item)
+            return ParameterObject.make_parameter(root, ref)
         
         parameter = specification.Parameter(
             name=item['name'],
@@ -156,6 +159,19 @@ class ParameterObject(JSONSchemaObject):
 class HeaderObject(JSONSchemaObject):
     description = fields.Str()
 
+    @staticmethod
+    def make_header(root, name, item):
+        header = specification.Header(
+            name=name,
+            description=item.get('description', ''),
+            type=item.get('type', ''),
+            format=item.get('format', ''),
+            default_value=item.get('default_value', ''),
+            collection_format=item.get('collection_format', '')
+        )
+
+        return header
+
 class ResponseObject(ReferenceObject):
     description = fields.Str()
     schema = fields.Nested(SchemaObject)
@@ -169,6 +185,32 @@ class ResponseObject(ReferenceObject):
         
         if 'description' not in data:
             raise ValidationError('Description must be set.')
+
+    @staticmethod
+    def make_response(root, item, name=None):
+        if ReferenceObject.is_ref(item):
+            ref, name = ReferenceObject.resolve_ref(root, item)
+            return ResponseObject.make_response(root, ref, name)
+
+        examples = []
+
+        for mime_type, item_pairs in item.get('examples', {}).items():
+            for key, value in item_pairs.values():
+                examples.append(specifications.Example(
+                    mime_type=mime_type,
+                    key=key,
+                    value=value
+                ))
+        
+        response = specification.Response(
+            name=name,
+            description=item.get('description', ''),
+            schema=None,
+            headers=[HeaderObject.make_header(root, name, item) for name, item in item.get('headers', {}).items()],
+            examples=examples
+        )
+
+        return response
 
 class OperationObject(Schema):
     tags = fields.List(fields.Str)
@@ -192,10 +234,18 @@ class OperationObject(Schema):
             summary=item.get('summary', ''),
             description=item.get('description', ''),
             deprecated=item.get('deprecated', False),
-            parameters=[ParameterObject.make_parameter(root, parameter) for parameter in item.get('parameters', [])]
+            parameters=[ParameterObject.make_parameter(root, parameter) for parameter in item.get('parameters', [])],
+            responses={code: ResponseObject.make_response(root, response) for code, response in item['responses'].items()}
         )
 
         return method
+
+    @validates_schema
+    def validate_empty_response(self, data, **kwargs):
+        if 'responses' not in data:
+            raise ValidationError('Responses must be provided for each operation.')
+        if not data['responses']:
+            raise ValidationError('At least one response must be provided for each operation.')
 
 class PathItemObject(ReferenceObject):
     get = fields.Nested(OperationObject)
@@ -210,7 +260,8 @@ class PathItemObject(ReferenceObject):
     @staticmethod
     def make_endpoint(root, url, item):
         if ReferenceObject.is_ref(item):
-            return PathItemObject.make_endpoint(root, url, ReferenceObject.resolve_ref(root, item))
+            ref, name = ReferenceObject.resolve_ref(root, item)
+            return PathItemObject.make_endpoint(root, url, ref)
 
         types = ('get', 'put', 'post', 'delete', 'options', 'head', 'patch')
 
