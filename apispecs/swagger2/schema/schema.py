@@ -102,8 +102,49 @@ class SchemaObject(JSONSchemaObject):
     xml = fields.Nested(XMLObject)
     external_docs = fields.Nested(ExternalDocumentationObject, data_key='externalDocs')
     example = fields.Raw()
+    required = fields.List(fields.Str)
     properties = fields.Dict(keys = fields.Str(), values = fields.Nested('self'))
     additional_properties = fields.Nested('self', data_key = 'additionalProperties')
+
+    @staticmethod
+    def make_schema(root, item, name=None, key=None, visited_nodes=None):
+        if item is None:
+            return None
+        
+        if visited_nodes is None:
+            visited_nodes = {}
+
+        if ReferenceObject.is_ref(item):
+            ref, name = ReferenceObject.resolve_ref(root, item)
+
+            if (name or key) and (name, key) in visited_nodes:
+                return visited_nodes[(name, key)]
+
+            return SchemaObject.make_schema(root, ref, name, key, visited_nodes)
+
+        description = item.get('description')
+
+        if description is None:
+            description = item.get('title', '')
+
+        schema = specification.ResponseProperty(
+            name=name,
+            key=key,
+            description=description,
+            type=item.get('type', ''),
+            format=item.get('format', ''),
+            default_value=item.get('default', ''),
+            required=item.get('required', []),
+            enums=item.get('enum', []),
+            properties=None,
+            items=None
+        )
+
+        visited_nodes[(name, key)] = schema
+
+        schema.properties = [SchemaObject.make_schema(root, property_item, key=property_key, visited_nodes=visited_nodes) for property_key, property_item in item.get('properties', {}).items()]
+        schema.items = SchemaObject.make_schema(root, item.get('items'), visited_nodes=visited_nodes)
+        return schema
 
 class ParameterObject(JSONSchemaObject):
     description = fields.Str()
@@ -151,7 +192,8 @@ class ParameterObject(JSONSchemaObject):
             type=item.get('type', ''),
             format=item.get('format', ''),
             default_value=item.get('default_value', ''),
-            collection_format=item.get('collection_format', '')
+            collection_format=item.get('collection_format', ''),
+            items=SchemaObject.make_schema(root, item.get('items'))
         )
 
         return parameter
@@ -205,7 +247,7 @@ class ResponseObject(ReferenceObject):
         response = specification.Response(
             name=name,
             description=item.get('description', ''),
-            schema=None,
+            schema=SchemaObject.make_schema(root, item.get('schema')),
             headers=[HeaderObject.make_header(root, name, item) for name, item in item.get('headers', {}).items()],
             examples=examples
         )
