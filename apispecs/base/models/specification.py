@@ -95,7 +95,7 @@ class Response(object):
 
 class Parameter(object):
     
-    def __init__(self, name, description, location, required, type, format, default_value, collection_format):
+    def __init__(self, name, description, location, required, type, format, default_value, collection_format, items):
         self.name = name
         self.description = description
         self.location = location
@@ -104,10 +104,33 @@ class Parameter(object):
         self.format = format
         self.default_value = default_value
         self.collection_format = collection_format
+        self.items = items
 
     def __str__(self):
         return (
             f'Parameter(name={self.name}, description={self.description}, location={self.location}, '
             f'required={self.required}, type={self.type}, format={self.format}, '
-            f'default_value={self.default_value}, collection_format={self.collection_format})'
+            f'default_value={self.default_value}, collection_format={self.collection_format}, '
+            f'items={self.items})'
+        )
+
+class ResponseProperty(object):
+
+    def __init__(self, name, key, description, type, format, default_value, required, enums, properties, items):
+        self.name = name
+        self.key = key
+        self.description = description
+        self.type = type
+        self.format = format
+        self.default_value = default_value
+        self.required = required
+        self.enums = enums
+        self.properties = properties
+        self.items = items
+    
+    def __str__(self):
+        return (
+            f'ResponseBase(name={self.name}, key={self.key}, description={self.description}, type={self.type}, '
+            f'format={self.format}, default_value={self.default_value}, required={self.required}, '
+            f'enums={self.enums}, items={self.items})'
         )
