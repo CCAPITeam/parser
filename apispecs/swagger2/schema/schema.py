@@ -277,7 +277,8 @@ class OperationObject(Schema):
             description=item.get('description', ''),
             deprecated=item.get('deprecated', False),
             parameters=[ParameterObject.make_parameter(root, parameter) for parameter in item.get('parameters', [])],
-            responses={code: ResponseObject.make_response(root, response) for code, response in item['responses'].items()}
+            responses={code: ResponseObject.make_response(root, response) for code, response in item['responses'].items()},
+            security_requirements=[specification.SecurityRequirement(name, scopes) for name, scopes in item.get('security', {}).items()]
         )
 
         return method

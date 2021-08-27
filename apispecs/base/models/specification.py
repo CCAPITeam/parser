@@ -37,7 +37,7 @@ class Endpoint(object):
 
 class Method(object):
 
-    def __init__(self, method, operation_id, summary, description, deprecated, parameters, responses):
+    def __init__(self, method, operation_id, summary, description, deprecated, parameters, responses, security_requirements):
         self.method = method
         self.operation_id = operation_id
         self.summary = summary
@@ -45,12 +45,14 @@ class Method(object):
         self.deprecated = deprecated
         self.parameters = parameters
         self.responses = responses
+        self.security_requirements = security_requirements
 
     def __str__(self):
         return (
             f'{self.method.upper()}(operation_id={self.operation_id}, summary={self.summary}, '
             f'description={self.description}, deprecated={self.deprecated}, '
-            f'parameters={format_list(self.parameters)}, responses={format_dict(self.responses)})'
+            f'parameters={format_list(self.parameters)}, responses={format_dict(self.responses)}, '
+            f'security_requirements={format_list(self.security_requirements)})'
         )
 
 class Header(object):
@@ -164,3 +166,12 @@ class OAuthScope(object):
     
     def __str__(self):
         return f'OAuthScope(name={self.name}, description={self.description})'
+
+class SecurityRequirement(object):
+
+    def __init__(self, name, scopes):
+        self.name = name
+        self.scopes = scopes
+    
+    def __str__(self):
+        return f'SecurityRequirement(name={self.name}, scopes={format_list(self.scopes)})'
