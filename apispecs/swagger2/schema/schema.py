@@ -350,6 +350,22 @@ class SecuritySchemeObject(Schema):
         if data['type'] == 'oauth2' and 'scopes' not in data:
             raise ValidationError('Scopes must be set when using OAuth2 authentication.')
 
+    @staticmethod
+    def make_scheme(root, title, item):
+        scheme = specification.SecurityScheme(
+            title=title,
+            name=item.get('name', ''),
+            description=item.get('description', ''),
+            type=item['type'],
+            location=item.get('in_location', ''),
+            flow=item.get('flow', ''),
+            authorization_url=item.get('authorization_url', ''),
+            token_url=item.get('token_url', ''),
+            scopes=[specification.OAuthScope(name, description) for name, description in item.get('scopes', {}).items()]
+        )
+
+        return scheme
+
 class TagObject(Schema):
     name = fields.Str(required = True)
     description = fields.Str()
@@ -388,7 +404,8 @@ class Swagger2Schema(Schema):
             license_url=license_url,
             version=info['version'],
             base_url=base_url,
-            endpoints=[PathItemObject.make_endpoint(data, url, endpoint) for url, endpoint in data['paths'].items()]
+            endpoints=[PathItemObject.make_endpoint(data, url, endpoint) for url, endpoint in data['paths'].items()],
+            security_schemes=[SecuritySchemeObject.make_scheme(data, title, scheme) for title, scheme in data.get('security_definitions', {}).items()]
         )
 
         return spec
