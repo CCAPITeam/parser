@@ -6,7 +6,7 @@ All specification implementations must extend this class.
 """
 class Specification(object):
     
-    def __init__(self, title, description, license_name, license_url, version, base_url, endpoints):
+    def __init__(self, title, description, license_name, license_url, version, base_url, endpoints, security_schemes):
         self.title = title
         self.description = description
         self.license_name = license_name
@@ -14,12 +14,13 @@ class Specification(object):
         self.version = version
         self.base_url = base_url
         self.endpoints = endpoints
+        self.security_schemes = security_schemes
 
     def __str__(self):
         return (
             f'Specification(title={self.title}, description={self.description}, license_name={self.license_name}, '
             f'license_url={self.license_url}, version={self.version}, base_url={self.base_url}, '
-            f'endpoints={format_list(self.endpoints)})'
+            f'endpoints={format_list(self.endpoints)}, security_schemes={format_list(self.security_schemes)})'
         )
 
 class Endpoint(object):
@@ -36,7 +37,7 @@ class Endpoint(object):
 
 class Method(object):
 
-    def __init__(self, method, operation_id, summary, description, deprecated, parameters, responses):
+    def __init__(self, method, operation_id, summary, description, deprecated, parameters, responses, security_requirements):
         self.method = method
         self.operation_id = operation_id
         self.summary = summary
@@ -44,12 +45,14 @@ class Method(object):
         self.deprecated = deprecated
         self.parameters = parameters
         self.responses = responses
+        self.security_requirements = security_requirements
 
     def __str__(self):
         return (
             f'{self.method.upper()}(operation_id={self.operation_id}, summary={self.summary}, '
             f'description={self.description}, deprecated={self.deprecated}, '
-            f'parameters={format_list(self.parameters)}, responses={format_dict(self.responses)})'
+            f'parameters={format_list(self.parameters)}, responses={format_dict(self.responses)}, '
+            f'security_requirements={format_list(self.security_requirements)})'
         )
 
 class Header(object):
@@ -134,3 +137,41 @@ class ResponseProperty(object):
             f'format={self.format}, default_value={self.default_value}, required={self.required}, '
             f'enums={self.enums}, items={self.items})'
         )
+
+class SecurityScheme(object):
+
+    def __init__(self, title, name, description, type, location, flow, authorization_url, token_url, scopes):
+        self.title = title 
+        self.name = name
+        self.description = description
+        self.type = type
+        self.location = location
+        self.flow = flow
+        self.authorization_url = authorization_url
+        self.token_url = token_url
+        self.scopes = scopes
+    
+    def __str__(self):
+        return (
+            f'SecurityScheme(title={self.title}, name={self.name}, description={self.description}, type={self.type}, '
+            f'location={self.location}, flow={self.flow}, authorization_url={self.authorization_url}, '
+            f'token_url={self.token_url}, scopes={format_list(self.scopes)})'
+        )
+
+class OAuthScope(object):
+
+    def __init__(self, name, description):
+        self.name = name
+        self.description = description
+    
+    def __str__(self):
+        return f'OAuthScope(name={self.name}, description={self.description})'
+
+class SecurityRequirement(object):
+
+    def __init__(self, name, scopes):
+        self.name = name
+        self.scopes = scopes
+    
+    def __str__(self):
+        return f'SecurityRequirement(name={self.name}, scopes={format_list(self.scopes)})'

@@ -82,7 +82,7 @@ class LicenseObject(Schema):
 class InfoObject(Schema):
     title = fields.Str(required = True)
     description = fields.Str()
-    terms_of_service = fields.Str(dataKey = 'termsOfService')
+    terms_of_service = fields.Str(data_key = 'termsOfService')
     contact = fields.Nested(ContactObject)
     license = fields.Nested(LicenseObject)
     version = fields.Str(required = True)
@@ -277,7 +277,8 @@ class OperationObject(Schema):
             description=item.get('description', ''),
             deprecated=item.get('deprecated', False),
             parameters=[ParameterObject.make_parameter(root, parameter) for parameter in item.get('parameters', [])],
-            responses={code: ResponseObject.make_response(root, response) for code, response in item['responses'].items()}
+            responses={code: ResponseObject.make_response(root, response) for code, response in item['responses'].items()},
+            security_requirements=[specification.SecurityRequirement(name, scopes) for security in item.get('security', []) for name, scopes in security.items()]
         )
 
         return method
@@ -350,6 +351,22 @@ class SecuritySchemeObject(Schema):
         if data['type'] == 'oauth2' and 'scopes' not in data:
             raise ValidationError('Scopes must be set when using OAuth2 authentication.')
 
+    @staticmethod
+    def make_scheme(root, title, item):
+        scheme = specification.SecurityScheme(
+            title=title,
+            name=item.get('name', ''),
+            description=item.get('description', ''),
+            type=item['type'],
+            location=item.get('in_location', ''),
+            flow=item.get('flow', ''),
+            authorization_url=item.get('authorization_url', ''),
+            token_url=item.get('token_url', ''),
+            scopes=[specification.OAuthScope(name, description) for name, description in item.get('scopes', {}).items()]
+        )
+
+        return scheme
+
 class TagObject(Schema):
     name = fields.Str(required = True)
     description = fields.Str()
@@ -388,7 +405,8 @@ class Swagger2Schema(Schema):
             license_url=license_url,
             version=info['version'],
             base_url=base_url,
-            endpoints=[PathItemObject.make_endpoint(data, url, endpoint) for url, endpoint in data['paths'].items()]
+            endpoints=[PathItemObject.make_endpoint(data, url, endpoint) for url, endpoint in data['paths'].items()],
+            security_schemes=[SecuritySchemeObject.make_scheme(data, title, scheme) for title, scheme in data.get('security_definitions', {}).items()]
         )
 
         return spec
