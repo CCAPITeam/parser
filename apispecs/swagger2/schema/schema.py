@@ -82,7 +82,7 @@ class LicenseObject(Schema):
 class InfoObject(Schema):
     title = fields.Str(required = True)
     description = fields.Str()
-    terms_of_service = fields.Str(dataKey = 'termsOfService')
+    terms_of_service = fields.Str(data_key = 'termsOfService')
     contact = fields.Nested(ContactObject)
     license = fields.Nested(LicenseObject)
     version = fields.Str(required = True)
@@ -278,7 +278,7 @@ class OperationObject(Schema):
             deprecated=item.get('deprecated', False),
             parameters=[ParameterObject.make_parameter(root, parameter) for parameter in item.get('parameters', [])],
             responses={code: ResponseObject.make_response(root, response) for code, response in item['responses'].items()},
-            security_requirements=[specification.SecurityRequirement(name, scopes) for name, scopes in item.get('security', {}).items()]
+            security_requirements=[specification.SecurityRequirement(name, scopes) for security in item.get('security', []) for name, scopes in security.items()]
         )
 
         return method
