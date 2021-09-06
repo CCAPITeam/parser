@@ -1,5 +1,6 @@
-from marshmallow import Schema, fields, validate, validates, missing, post_load, validates_schema, ValidationError, INCLUDE
+from marshmallow import Schema, fields, validate, validates, missing, post_load, pre_dump, post_dump, validates_schema, ValidationError, INCLUDE
 from apispecs.base.models import specification
+from apispecs.base.globals import METHOD_TYPES
 from urllib.parse import urljoin
 
 PARAMETER_LOCATIONS = ['query', 'header', 'path', 'formData', 'body']
@@ -9,7 +10,16 @@ API_KEY_LOCATIONS = ['query', 'header']
 OAUTH2_SECURITY_FLOWS = ['implicit', 'password', 'application', 'accessCode']
 SCHEMES = ['http', 'https', 'ws', 'wss']
 
-class ReferenceObject(Schema):
+class BaseSchema(Schema):
+
+    @post_dump
+    def remove_empty_values(self, data, **kwargs):
+        return {
+            key: value for key, value in data.items()
+            if value is not None
+        }
+
+class ReferenceObject(BaseSchema):
     ref = fields.Str(data_key = '$ref')
 
     @staticmethod
@@ -34,7 +44,7 @@ class ReferenceObject(Schema):
 
         return current, path
 
-class JSONBaseSchemaObject(Schema):
+class JSONBaseSchemaObject(BaseSchema):
     format = fields.Str()
     collection_format = fields.Str(data_key = 'collectionFormat', validate = validate.OneOf(COLLECTION_FORMATS), default = 'csv')
     default = fields.Raw()
@@ -66,20 +76,20 @@ class JSONSchemaObject(JSONBaseSchemaObject, ReferenceObject):
         if not self.is_ref(data) and data.get('type') == 'array' and 'items' not in data:
             raise ValidationError('Items must be set if `in` is not set to `body`.')
 
-class ExternalDocumentationObject(Schema):
+class ExternalDocumentationObject(BaseSchema):
     description = fields.Str()
     url = fields.Str(required = True)
 
-class ContactObject(Schema):
+class ContactObject(BaseSchema):
     name = fields.Str()
     url = fields.Str()
     email = fields.Str()
 
-class LicenseObject(Schema):
+class LicenseObject(BaseSchema):
     name = fields.Str(required = True)
     url = fields.Str()
 
-class InfoObject(Schema):
+class InfoObject(BaseSchema):
     title = fields.Str(required = True)
     description = fields.Str()
     terms_of_service = fields.Str(data_key = 'termsOfService')
@@ -87,7 +97,7 @@ class InfoObject(Schema):
     license = fields.Nested(LicenseObject)
     version = fields.Str(required = True)
 
-class XMLObject(Schema):
+class XMLObject(BaseSchema):
     name = fields.Str()
     namespace = fields.Str()
     prefix = fields.Str()
@@ -179,12 +189,13 @@ class ParameterObject(JSONSchemaObject):
             raise ValidationError('Type must be set if `in` is not set to `body`.')
 
     @staticmethod
-    def make_parameter(root, item):
+    def make_parameter(root, item, title=None):
         if ReferenceObject.is_ref(item):
             ref, name = ReferenceObject.resolve_ref(root, item)
-            return ParameterObject.make_parameter(root, ref)
+            return ParameterObject.make_parameter(root, ref, name)
         
         parameter = specification.Parameter(
+            title=title,
             name=item['name'],
             description=item.get('description', ''),
             location=item['in_location'],
@@ -238,7 +249,7 @@ class ResponseObject(ReferenceObject):
 
         for mime_type, item_pairs in item.get('examples', {}).items():
             for key, value in item_pairs.values():
-                examples.append(specifications.Example(
+                examples.append(specification.Example(
                     mime_type=mime_type,
                     key=key,
                     value=value
@@ -254,7 +265,7 @@ class ResponseObject(ReferenceObject):
 
         return response
 
-class OperationObject(Schema):
+class OperationObject(BaseSchema):
     tags = fields.List(fields.Str)
     summary = fields.Str()
     description = fields.Str()
@@ -298,6 +309,7 @@ class PathItemObject(ReferenceObject):
     options = fields.Nested(OperationObject)
     head = fields.Nested(OperationObject)
     patch = fields.Nested(OperationObject)
+    trace = fields.Nested(OperationObject)
     parameters = fields.List(fields.Nested(ParameterObject))
     
     @staticmethod
@@ -306,17 +318,25 @@ class PathItemObject(ReferenceObject):
             ref, name = ReferenceObject.resolve_ref(root, item)
             return PathItemObject.make_endpoint(root, url, ref)
 
-        types = ('get', 'put', 'post', 'delete', 'options', 'head', 'patch')
-
         endpoint = specification.Endpoint(
             url=url,
             parameters=[ParameterObject.make_parameter(root, parameter) for parameter in item.get('parameters', [])],
-            methods=[OperationObject.make_method(root, method, item[method]) for method in types if method in item]
+            methods=[OperationObject.make_method(root, method, item[method]) for method in METHOD_TYPES if method in item]
         )
 
         return endpoint
 
-class SecuritySchemeObject(Schema):
+    @staticmethod
+    def dump_endpoint(endpoint):
+        return {
+            type: {
+                'parameters': [ParameterObject.dump_parameter(parameter) for parameter in getattr(endpoint, type).parameters]
+            }
+            for type in METHOD_TYPES
+            if hasattr(endpoint, type)
+        }
+
+class SecuritySchemeObject(BaseSchema):
     type = fields.Str(validate = validate.OneOf(SECURITY_SCHEME_TYPES), required = True)
     description = fields.Str()
     name = fields.Str()
@@ -361,19 +381,20 @@ class SecuritySchemeObject(Schema):
             location=item.get('in_location', ''),
             flow=item.get('flow', ''),
             authorization_url=item.get('authorization_url', ''),
+            refresh_url='',
             token_url=item.get('token_url', ''),
             scopes=[specification.OAuthScope(name, description) for name, description in item.get('scopes', {}).items()]
         )
 
         return scheme
 
-class TagObject(Schema):
+class TagObject(BaseSchema):
     name = fields.Str(required = True)
     description = fields.Str()
     external_docs = fields.Nested(ExternalDocumentationObject, data_key = 'externalDocs')
 
 # https://github.com/OAI/OpenAPI-Specification/blob/main/versions/2.0.md#swagger-object
-class Swagger2Schema(Schema):
+class Swagger2Schema(BaseSchema):
     swagger = fields.Str(required = True)
     info = fields.Nested(InfoObject, required = True)
     host = fields.Str()
@@ -410,3 +431,17 @@ class Swagger2Schema(Schema):
         )
 
         return spec
+    
+    @pre_dump
+    def dump_schema(self, spec, **kwargs):
+        return {
+            'base_path': spec.base_url,
+            'swagger': '2.0',
+            'info': {
+                'title': spec.title, 'description': spec.description, 'version': spec.version,
+                'license': {
+                    'name': spec.license_name, 'url': spec.license_url
+                }
+            },
+            'paths': {endpoint.url: PathItemObject.dump_endpoint(endpoint) for endpoint in spec.endpoints}
+        }

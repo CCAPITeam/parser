@@ -1,4 +1,11 @@
 """
+Thrown when the serialization service
+fails to serialize the specification in some way.
+"""
+class SerializationException(Exception):
+    pass
+
+"""
 Thrown when the deserialization service
 fails to deserialize the specification in some way.
 """

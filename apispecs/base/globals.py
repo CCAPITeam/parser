@@ -1,0 +1,1 @@
+METHOD_TYPES = ['get', 'put', 'post', 'delete', 'options', 'head', 'patch', 'trace']

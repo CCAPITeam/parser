@@ -98,7 +98,8 @@ class Response(object):
 
 class Parameter(object):
     
-    def __init__(self, name, description, location, required, type, format, default_value, collection_format, items):
+    def __init__(self, title, name, description, location, required, type, format, default_value, collection_format, items):
+        self.title = title
         self.name = name
         self.description = description
         self.location = location
@@ -111,7 +112,7 @@ class Parameter(object):
 
     def __str__(self):
         return (
-            f'Parameter(name={self.name}, description={self.description}, location={self.location}, '
+            f'Parameter(title={self.title}, name={self.name}, description={self.description}, location={self.location}, '
             f'required={self.required}, type={self.type}, format={self.format}, '
             f'default_value={self.default_value}, collection_format={self.collection_format}, '
             f'items={self.items})'
@@ -140,7 +141,7 @@ class ResponseProperty(object):
 
 class SecurityScheme(object):
 
-    def __init__(self, title, name, description, type, location, flow, authorization_url, token_url, scopes):
+    def __init__(self, title, name, description, type, location, flow, authorization_url, refresh_url, token_url, scopes):
         self.title = title 
         self.name = name
         self.description = description
@@ -148,6 +149,7 @@ class SecurityScheme(object):
         self.location = location
         self.flow = flow
         self.authorization_url = authorization_url
+        self.refresh_url = refresh_url
         self.token_url = token_url
         self.scopes = scopes
     
@@ -155,7 +157,7 @@ class SecurityScheme(object):
         return (
             f'SecurityScheme(title={self.title}, name={self.name}, description={self.description}, type={self.type}, '
             f'location={self.location}, flow={self.flow}, authorization_url={self.authorization_url}, '
-            f'token_url={self.token_url}, scopes={format_list(self.scopes)})'
+            f'refresh_url={self.refresh_url}, token_url={self.token_url}, scopes={format_list(self.scopes)})'
         )
 
 class OAuthScope(object):

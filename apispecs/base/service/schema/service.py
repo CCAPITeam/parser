@@ -17,3 +17,10 @@ class SchemaService(metaclass=Singleton):
                 return provider.get_schema()
 
         raise UnknownSchemaException('The specification schema could not be determined.')
+
+    def find_schema_by_name(self, name: str) -> Schema:
+        for provider in self._providers:
+            if provider.get_name() == name:
+                return provider.get_schema()
+        
+        raise UnknownSchemaException('The specification schema could not be found.')

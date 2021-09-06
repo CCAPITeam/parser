@@ -4,7 +4,6 @@ from apispecs.base.service.deserialization.provider import DeserializationProvid
 from apispecs.base.exceptions import UnknownDeserializerException
 from collections.abc import Sequence
 from io import TextIOBase
-from marshmallow import Schema
 
 class DeserializationService(metaclass=Singleton):
     _providers: Sequence[DeserializationProvider] = []
@@ -25,3 +24,10 @@ class DeserializationService(metaclass=Singleton):
 
     def deserialize_to_specification(self, content_type: str, stream: TextIOBase) -> Specification:
         return self.find_provider(content_type).deserialize_to_specification(stream)
+
+    def serialize_to_dict(self, content_type: str, schema_name: str, spec: Specification) -> dict:
+        return self.find_provider(content_type).serialize_to_dict(spec, schema_name)
+    
+    def serialize_to_text(self, content_type: str, schema_name: str, spec: Specification) -> str:
+        provider = self.find_provider(content_type)
+        return provider.serialize_to_text(provider.serialize_to_dict(spec, schema_name))
