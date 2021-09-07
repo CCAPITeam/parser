@@ -7,7 +7,7 @@ import yaml
 class YAMLDeserializationProvider(BaseDeserializationProvider):
 
     def get_content_types(self) -> Sequence[str]:
-        return ['text/yaml']
+        return ['text/yaml', 'application/yaml']
 
     def deserialize_to_dict(self, stream: TextIOBase) -> dict:
         try:

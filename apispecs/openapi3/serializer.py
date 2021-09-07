@@ -11,6 +11,7 @@ SWAGGER_FORMATS_TO_STYLE = {
     'label': ('label', False),
     'deepObject': ('deepObject', False)
 }
+SWAGGER_FLOW_TO_SECURITY_FLOW = {'application': 'clientCredentials', 'accessCode': 'authorizationCode'}
 
 def clean_empty(d):
     if isinstance(d, dict):
@@ -36,6 +37,7 @@ class OpenAPI3Serializer(object):
         self.responses = {}
         self.parameters = {}
         self.request_bodies = {}
+        self.headers = {}
     
     def sanitize_ref(self, ref):
         return json.dumps(ref)
@@ -73,9 +75,59 @@ class OpenAPI3Serializer(object):
             serialized_parameter['required'] = True
 
         return serialized_parameter
+    
+    def serialize_header(self, header, ref=True):
+        if header is None:
+            return None
 
-    def serialize_schema(self, schema):
-        return None
+        if ref and header.name:
+            self.headers[header.name] = header
+            return {'$ref': f'#/components/headers/{sanitize_ref(header.name)}'}
+
+        style, explode = self.find_style(header.collection_format)
+
+        serialized_header = {
+            'description': header.description,
+            'type': header.type,
+            'format': header.format,
+            'style': style,
+            'items': self.serialize_schema(header.items)
+        }
+
+        if explode:
+            serialized_header['explode'] = True
+
+        return serialized_header
+
+    def serialize_schema(self, schema, ref=True):
+        if schema is None:
+            return None
+
+        if ref and schema.name:
+            self.schemas[schema.name] = schema
+            return {'$ref': f'#/components/schemas/{sanitize_ref(schema.name)}'}
+
+        style, explode = self.find_style(schema.format)
+
+        serialized_schema = {
+            'description': schema.description,
+            'type': schema.type,
+            'format': schema.format,
+            'style': style,
+            'required': schema.required,
+            'enums': schema.enums,
+            'items': self.serialize_schema(schema.items)
+        }
+
+        serialized_schema['properties'] = {property.key: self.serialize_schema(property) for property in schema.properties}
+
+        if explode:
+            serialized_schema['explode'] = True
+
+        if schema.required:
+            serialized_schema['required'] = True
+
+        return serialized_schema
 
     def serialize_request_body(self, request_body, ref=True):
         if request_body is None:
@@ -109,6 +161,26 @@ class OpenAPI3Serializer(object):
         
         return serialized_body
 
+    def serialize_response(self, response, ref=True):
+        if response is None:
+            return None
+        
+        if ref and response.name:
+            self.responses[response.name] = response
+            return {'$ref': f'#/components/responses/{sanitize_ref(response.name)}'}
+
+        serialized_body = {
+            'description': response.description,
+            'headers': {header.name: self.serialize_header(header) for header in response.headers},
+            'content': {
+                'application/json': {
+                    'schema': self.serialize_schema(response.schema)
+                }
+            }
+        }
+
+        return serialized_body
+
     def serialize_endpoint(self, endpoint):
         serialized = {
             'parameters': [self.serialize_parameter(parameter) for parameter in endpoint.parameters if parameter.location != 'body']
@@ -122,8 +194,8 @@ class OpenAPI3Serializer(object):
                 'operationId': method.operation_id,
                 'parameters': [self.serialize_parameter(parameter) for parameter in method.parameters if parameter.location != 'body'],
                 'requestBody': self.serialize_request_body(request_body),
-                'responses': {}, # to do
-                'security': [] # to do
+                'responses': {code: self.serialize_response(response) for code, response in method.responses.items()},
+                'security': [{requirement.name: requirement.scopes} for requirement in method.security_requirements]
             }
 
             if method.deprecated:
@@ -131,6 +203,36 @@ class OpenAPI3Serializer(object):
             
             serialized[method.method] = serialized_method
         
+        return serialized
+
+    def serialize_security_scheme(self, scheme):
+        flow_type = SWAGGER_FLOW_TO_SECURITY_FLOW.get(scheme.flow, scheme.flow)
+        flows = {}
+
+        if flow_type:
+            flows[flow_type] = {
+                'authorizationUrl': scheme.authorization_url,
+                'refreshUrl': scheme.refresh_url,
+                'tokenUrl': scheme.token_url,
+                'scopes': {scope.name: scope.description for scope in scheme.scopes}
+            }
+
+        return {
+            'type': scheme.type,
+            'description': scheme.description,
+            'name': scheme.name,
+            'in': scheme.location,
+            'flows': flows
+        }
+
+    def serialize_components(self, components, serializer):
+        serialized = {}
+
+        while len(serialized) != len(components):
+            for title, component in list(components.items()):
+                if title not in serialized:
+                    serialized[title] = serializer(component, ref=False)
+
         return serialized
 
     def serialize(self):
@@ -145,10 +247,11 @@ class OpenAPI3Serializer(object):
             'servers': [{'url': self.spec.base_url}],
             'paths': {endpoint.url: self.serialize_endpoint(endpoint) for endpoint in self.spec.endpoints},
             'components': {
-                'schemas': {title: self.serialize_schema(schema, ref=False) for title, schema in self.schemas.items()},
-                'responses': {title: self.serialize_response(response, ref=False) for title, response in self.responses.items()},
-                'parameters': {title: self.serialize_parameter(parameter, ref=False) for title, parameter in self.parameters.items()},
-                'requestBodies': {title: self.serialize_request_body(request_body, ref=False) for title, request_body in self.request_bodies.items()}
-            },
-            'security': [] # to do
+                'schemas': self.serialize_components(self.schemas, self.serialize_schema),
+                'responses': self.serialize_components(self.responses, self.serialize_response),
+                'parameters': self.serialize_components(self.parameters, self.serialize_parameter),
+                'requestBodies': self.serialize_components(self.request_bodies, self.serialize_request_body),
+                'headers': self.serialize_components(self.headers, self.serialize_header),
+                'securitySchemes': {security.title: self.serialize_security_scheme(security) for security in self.spec.security_schemes}
+            }
         })

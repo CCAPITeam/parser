@@ -57,18 +57,19 @@ class Method(object):
 
 class Header(object):
 
-    def __init__(self, name, description, type, format, default_value, collection_format):        
+    def __init__(self, name, description, type, format, default_value, collection_format, items):
         self.name = name
         self.description = description
         self.type = type
         self.format = format
         self.default_value = default_value
         self.collection_format = collection_format
+        self.items = items
     
     def __str__(self):
         return (
             f'Header(name={self.name}, description={self.description}, type={self.type}, format={self.format}, '
-            f'default_value={self.default_value}, collection_format={self.collection_format})'
+            f'default_value={self.default_value}, collection_format={self.collection_format}, items={self.items})'
         )
 
 class Example(object):

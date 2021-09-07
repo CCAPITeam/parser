@@ -214,6 +214,10 @@ class HeaderObject(ParameterObject):
 
     @staticmethod
     def make_header(root, name, item):
+        if ReferenceObject.is_ref(item):
+            ref, name = ReferenceObject.resolve_ref(root, item)
+            return HeaderObject.make_header(root, ref, name)
+
         schema = item['schema']
 
         header = specification.Header(
@@ -222,7 +226,8 @@ class HeaderObject(ParameterObject):
             type=schema.get('type', ''),
             format=schema.get('format', ''),
             default_value='',
-            collection_format=ParameterObject.get_collection_format(schema)
+            collection_format=ParameterObject.get_collection_format(schema),
+            items=SchemaObject.make_schema(root, schema.get('items'))
         )
 
         return header
@@ -378,19 +383,6 @@ class PathItemObject(ReferenceObject):
         )
 
         return endpoint
-
-    @staticmethod
-    def dump_endpoint(endpoint):
-        new_endpoint = {
-            type: {
-                'parameters': [ParameterObject.dump_parameter(parameter) for parameter in endpoint.parameters],
-                'methods': [Method]
-            }
-            for type in METHOD_TYPES
-            if hasattr(endpoint, type)
-        }
-        print(new_endpoint)
-        return new_endpoint
 
 class OAuthFlowObject(BaseSchema):
     authorization_url = fields.Str(data_key = 'authorizationUrl')

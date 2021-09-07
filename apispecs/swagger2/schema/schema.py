@@ -221,7 +221,8 @@ class HeaderObject(JSONSchemaObject):
             type=item.get('type', ''),
             format=item.get('format', ''),
             default_value=item.get('default_value', ''),
-            collection_format=item.get('collection_format', '')
+            collection_format=item.get('collection_format', ''),
+            items=SchemaObject.make_schema(root, item.get('items'))
         )
 
         return header
