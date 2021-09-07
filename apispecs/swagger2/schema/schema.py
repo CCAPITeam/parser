@@ -1,6 +1,7 @@
 from marshmallow import Schema, fields, validate, validates, missing, post_load, pre_dump, post_dump, validates_schema, ValidationError, INCLUDE
 from apispecs.base.models import specification
 from apispecs.base.globals import METHOD_TYPES
+from apispecs.base.exceptions import UnknownSchemaException
 from urllib.parse import urljoin
 
 PARAMETER_LOCATIONS = ['query', 'header', 'path', 'formData', 'body']
@@ -326,16 +327,6 @@ class PathItemObject(ReferenceObject):
 
         return endpoint
 
-    @staticmethod
-    def dump_endpoint(endpoint):
-        return {
-            type: {
-                'parameters': [ParameterObject.dump_parameter(parameter) for parameter in getattr(endpoint, type).parameters]
-            }
-            for type in METHOD_TYPES
-            if hasattr(endpoint, type)
-        }
-
 class SecuritySchemeObject(BaseSchema):
     type = fields.Str(validate = validate.OneOf(SECURITY_SCHEME_TYPES), required = True)
     description = fields.Str()
@@ -432,16 +423,5 @@ class Swagger2Schema(BaseSchema):
 
         return spec
     
-    @pre_dump
-    def dump_schema(self, spec, **kwargs):
-        return {
-            'base_path': spec.base_url,
-            'swagger': '2.0',
-            'info': {
-                'title': spec.title, 'description': spec.description, 'version': spec.version,
-                'license': {
-                    'name': spec.license_name, 'url': spec.license_url
-                }
-            },
-            'paths': {endpoint.url: PathItemObject.dump_endpoint(endpoint) for endpoint in spec.endpoints}
-        }
+    def dump_schema(self, spec):
+        raise UnknownSchemaException('This schema cannot be dumped!')

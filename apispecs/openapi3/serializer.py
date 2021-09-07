@@ -148,7 +148,7 @@ class OpenAPI3Serializer(object):
                 'schemas': {title: self.serialize_schema(schema, ref=False) for title, schema in self.schemas.items()},
                 'responses': {title: self.serialize_response(response, ref=False) for title, response in self.responses.items()},
                 'parameters': {title: self.serialize_parameter(parameter, ref=False) for title, parameter in self.parameters.items()},
-                'requestBodies': {title: self.serialize_request_bodies(request_body, ref=False) for title, request_body in self.request_bodies.items()}
+                'requestBodies': {title: self.serialize_request_body(request_body, ref=False) for title, request_body in self.request_bodies.items()}
             },
             'security': [] # to do
         })
