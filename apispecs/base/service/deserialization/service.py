@@ -4,7 +4,6 @@ from apispecs.base.service.deserialization.provider import DeserializationProvid
 from apispecs.base.exceptions import UnknownDeserializerException
 from collections.abc import Sequence
 from io import TextIOBase
-from marshmallow import Schema
 
 class DeserializationService(metaclass=Singleton):
     _providers: Sequence[DeserializationProvider] = []
@@ -20,8 +19,18 @@ class DeserializationService(metaclass=Singleton):
         
         raise UnknownDeserializerException('The file format could not be recognized.')
 
+    def find_first_provider(self) -> DeserializationProvider:
+        return self._providers[0]
+
     def deserialize_to_dict(self, content_type: str, stream: TextIOBase) -> dict:
         return self.find_provider(content_type).deserialize_to_dict(stream)
 
     def deserialize_to_specification(self, content_type: str, stream: TextIOBase) -> Specification:
         return self.find_provider(content_type).deserialize_to_specification(stream)
+
+    def serialize_to_dict(self, schema_name: str, spec: Specification) -> dict:
+        return self.find_first_provider().serialize_to_dict(spec, schema_name)
+    
+    def serialize_to_text(self, content_type: str, schema_name: str, spec: Specification) -> str:
+        provider = self.find_provider(content_type)
+        return provider.serialize_to_text(provider.serialize_to_dict(spec, schema_name))

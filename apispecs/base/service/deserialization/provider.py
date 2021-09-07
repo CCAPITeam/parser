@@ -17,3 +17,12 @@ class DeserializationProvider(metaclass=SingletonABCMeta):
     @abstractmethod
     def deserialize_to_specification(self, stream: TextIOBase) -> Specification:
         pass
+
+    @abstractmethod
+    def serialize_to_dict(self, spec: Specification, schema_name: str) -> dict:
+        pass
+
+    @abstractmethod
+    def serialize_to_text(self, spec: dict) -> str:
+        pass
+

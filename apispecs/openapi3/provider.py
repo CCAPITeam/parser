@@ -7,5 +7,8 @@ class OpenAPI3SchemaProvider(SchemaProvider):
     def is_schema_adequate(self, fields: dict) -> bool:
         return self.find_major_version(fields.get('openapi')) == '3'
 
+    def get_name(self) -> str:
+        return 'openapi3'
+
     def get_schema(self) -> Schema:
         return OpenAPI3Schema()

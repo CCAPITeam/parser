@@ -8,6 +8,10 @@ class SchemaProvider(ABC):
         pass
 
     @abstractmethod
+    def get_name(self) -> str:
+        pass
+
+    @abstractmethod
     def get_schema(self) -> Schema:
         pass
 

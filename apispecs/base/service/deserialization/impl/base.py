@@ -15,3 +15,7 @@ class BaseDeserializationProvider(DeserializationProvider):
             return schema.load(fields)
         except ValidationError as e:
             raise DeserializationException(f'Failed to validate specification: {e}')
+
+    def serialize_to_dict(self, spec: Specification, schema_name: str) -> dict:
+        schema = SchemaService().find_schema_by_name(schema_name)
+        return schema.dump_schema(spec)
